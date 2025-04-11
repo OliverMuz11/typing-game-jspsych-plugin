@@ -2,22 +2,173 @@
 <html>
 
 <head>
-  <script src="https://unpkg.com/jspsych"></script>
-  <!-- The plugin is loaded here -->
-  <script src="https://unpkg.com/@jspsych/plugin-{name}"></script>
+  <title>Typing Experiment</title>
+  <script src="https://unpkg.com/jspsych@7.3.1"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-likert@1.1.2"></script>
+  <!-- Load your custom typing trial plugin -->
   <script src="../src/index.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/jspsych/css/jspsych.css">
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
 </head>
 
 <body></body>
 <script>
-  const jsPsych = initJsPsych();
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      jsPsych.data.displayData();
+    }
+  });
 
-  const trial = {
-    type: jsPsychTypingTrial, 
+  // Lists for sentence generation
+  const subjects = [
+    'I', 'You', 'He', 'She', 'They', 'We', 'Dogs', 'Cats', 
+    'Birds', 'People', 'Children', 'Students', 'Teachers', 'Parents'
+  ];
+  
+  const verbs = [
+    'eat', 'run', 'jump', 'play', 'sing', 'dance', 'write', 'read',
+    'watch', 'hear', 'see', 'feel', 'build', 'create'
+  ];
+  
+  const objects = [
+    'food', 'games', 'books', 'music', 'movies', 'cards', 'toys',
+    'sports', 'websites', 'papers', 'stories', 'songs'
+  ];
+
+  // Function to generate random real sentences
+  function generateNormalSentence() {
+    const subject = subjects[Math.floor(Math.random() * subjects.length)];
+    const verb = verbs[Math.floor(Math.random() * verbs.length)];
+    const object = objects[Math.floor(Math.random() * objects.length)];
+    
+    return `${subject} ${verb} ${object}`;
+  }
+  
+  // Function to generate random letter strings
+  function generateRandomString(minLength, maxLength) {
+    const length = Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
+    const letters = 'abcdefghijklmnopqrstuvwxyzAHMNPRSTUVWXZ';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+    return result;
+  }
+  
+  function generateRandomLetterSentence() {
+    const firstWord = generateRandomString(3, 6);
+    const secondWord = generateRandomString(3, 7);
+    const thirdWord = generateRandomString(2, 5);
+    
+    return `${firstWord} ${secondWord} ${thirdWord}`;
+  }
+
+  // Define a set of trials with balanced conditions
+  // Create arrays to hold all possible condition combinations
+  const conditions = [];
+  for (let soundMode = 0; soundMode < 3; soundMode++) {
+    for (let sentenceType = 0; sentenceType < 2; sentenceType++) {
+      conditions.push({
+        soundMode: soundMode,
+        useRealSentence: sentenceType === 0
+      });
+    }
+  }
+
+  // Calculate how many repetitions of each condition we need
+  const numTrials = 6; // Example: multiple of 6 (3 sound modes × 2 sentence types)
+  const repetitionsPerCondition = numTrials / conditions.length;
+
+  // Create timeline
+  let timeline = [];
+  
+  // Add instructions at the beginning
+  const instructions = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style="max-width: 800px; margin: 0 auto;">
+        <h1>Typing Experiment</h1>
+        <p>In this experiment, you will be asked to type sentences or strings of text.</p>
+        <p>When the trials begin, a string of letters will appear on the screen. Please type the letters you see as quickly as possible. You may type in whatever way feels more comfortable for you. Each trial will end once you reach the end of the string of letters or after 15 seconds elapses. As you type, you will hear clicking noises, please listen carefully for these sounds. If you make a mistake—don’t worry! Just keep going. Also, please note that the words are case sensitive, and you should type a space between each word where appropriate. Soon after you finish typing, you will be asked to rate how much control you had over the clicking noises between 1 (no control at all) and 5 (full control). Under “full control” the tone plays in sync with each key that is pressed. “No control at all” means that the tone plays but is not related to your key presses.</p>
+        <p>Press any key to begin.</p>
+      </div>
+    `,
+    post_trial_gap: 500
   };
+  
+  timeline.push(instructions);
 
-  jsPsych.run([trial])
+  // Generate trials with balanced conditions
+  for (let i = 0; i < repetitionsPerCondition; i++) {
+    // Make a copy of conditions array for this repetition
+    const conditionSet = [...conditions];
+    
+    // Shuffle the conditions to randomize order
+    for (let j = conditionSet.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      [conditionSet[j], conditionSet[k]] = [conditionSet[k], conditionSet[j]];
+    }
+    
+    // Add trials for this set of conditions
+    for (let j = 0; j < conditionSet.length; j++) {
+      const condition = conditionSet[j];
+      
+      // Generate the sentence based on condition
+      const sentence = condition.useRealSentence ? 
+        generateNormalSentence() : 
+        generateRandomLetterSentence();
+      
+      // Create a mini-timeline for each trial sequence (typing + rating + continue)
+      const typingTrial = {
+        type: jsPsychTypingTrial,
+        sentence: sentence,
+        soundMode: condition.soundMode,
+        data: {
+          is_real_sentence: condition.useRealSentence,
+          trial_number: timeline.length + 1
+        }
+      };
+      
+      // Create the rating scale trial
+      const ratingTrial = {
+        type: jsPsychSurveyLikert,
+        preamble: '<p>Please answer the following question:</p>',
+        questions: [
+          {
+            prompt: "Rate how much control you had over the sounds on a scale of 1-7",
+            labels: ["1<br>No control at all", "2", "3", "4<br>Moderate", "5", "6", "7<br>Full control"],
+            required: true
+          }
+        ],
+        button_label: 'Submit Rating',
+        data: {
+          task: 'sound_control_rating',
+          associated_trial: timeline.length + 1
+        }
+      };
+      
+      // Add the three trials to the timeline
+      timeline.push(typingTrial);
+      timeline.push(ratingTrial);
+    }
+  }
+  
+  // Add final thank you screen
+  const thankYou = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style="max-width: 800px; margin: 0 auto;">
+        <p>Thank you for participating in this study! The experiment you just completed is a part of a research project exploring how individuals perceive their sense of control when they are performing actions they are familiar and unfamiliar with. In this case, this was done through the game where you typed words and nonwords. Your rating of how much control you felt over the tones and your hands will be helpful for us to understand sense of control in relation to skill</p>
+        <p>We appreciate your time and contribution to our research. Thank you again!</p>
+      </div>
+    `
+  };
+  
+  timeline.push(thankYou);
+
+  // Run the experiment
+  jsPsych.run(timeline);
 </script>
 
 </html>
