@@ -5,48 +5,21 @@ var jsPsychTypingTrial = (function (jspsych) {
     name: "typing-trial",
     version: "1.0.0",
     parameters: {
-      /** Lists of words for generating sentences */
-      subjects: {
+      /** The sentence or text string to be typed */
+      sentence: {
         type: jspsych.ParameterType.STRING,
-        array: true,
-        default: [
-          'I', 'You', 'He', 'She', 'They', 'We', 'Dogs', 'Cats', 
-          'Birds', 'People', 'Children', 'Students', 'Teachers', 'Parents',
-          'Artists', 'Scientists', 'Writers', 'Doctors', 'Players', 'Friends'
-        ],
+        default: null,
+        required: true
       },
-      verbs: {
-        type: jspsych.ParameterType.STRING,
-        array: true,
-        default: [
-          'eat', 'run', 'jump', 'play', 'sing', 'dance', 'write', 'read',
-          'watch', 'hear', 'see', 'feel', 'build', 'create', 'make', 'find',
-          'love', 'help', 'teach', 'learn'
-        ],
-      },
-      objects: {
-        type: jspsych.ParameterType.STRING,
-        array: true,
-        default: [
-          'food', 'games', 'books', 'music', 'movies', 'cards', 'toys',
-          'sports', 'websites', 'papers', 'stories', 'songs', 'pictures',
-          'ideas', 'words', 'lessons', 'puzzles', 'plans', 'projects', 'art'
-        ],
-      },
-      /** Probability (0-1) of using a random letter string instead of a normal sentence */
-      randomStringProbability: {
-        type: jspsych.ParameterType.FLOAT,
-        default: 0.5,
-      },
-      /** Sound mode to use (0, 1, or 2). If null, will be randomly selected for each trial */
+      /** Sound mode to use (0, 1, or 2) */
       soundMode: {
         type: jspsych.ParameterType.INT,
-        default: null, // Will be randomly set each trial
+        default: 0
       },
       /** Maximum time allowed for the trial in milliseconds (null means no time limit) */
       trialDuration: {
         type: jspsych.ParameterType.INT,
-        default: null,
+        default: 15000, // 15 seconds default timeout
       },
       /** Time to display feedback after word completion in milliseconds */
       feedbackDuration: {
@@ -55,19 +28,19 @@ var jsPsychTypingTrial = (function (jspsych) {
       }
     },
     data: {
-      /** The target word presented to the participant */
-      target_word: {
+      /** The target sentence presented to the participant */
+      target_sentence: {
         type: jspsych.ParameterType.STRING,
       },
       /** The text entered by the participant */
       user_input: {
         type: jspsych.ParameterType.STRING,
       },
-      /** Whether the participant's input matched the target word */
+      /** Whether the participant's input matched the target sentence */
       accuracy: {
         type: jspsych.ParameterType.BOOL,
       },
-      /** Total time taken to complete the word in milliseconds */
+      /** Total time taken to complete the sentence in milliseconds */
       reaction_time: {
         type: jspsych.ParameterType.INT,
       },
@@ -85,8 +58,8 @@ var jsPsychTypingTrial = (function (jspsych) {
       sound_mode: {
         type: jspsych.ParameterType.INT,
       },
-      /** Whether the trial used a real sentence (true) or random string (false) */
-      is_real_sentence: {
+      /** Whether any errors were made during typing */
+      had_errors: {
         type: jspsych.ParameterType.BOOL,
       }
     },
@@ -100,7 +73,7 @@ var jsPsychTypingTrial = (function (jspsych) {
    * **typing-trial**
    *
    * A jsPsych plugin for measuring typing performance with variable sound feedback.
-   * Participants type sentences or random letter strings while receiving auditory feedback that can be immediate, delayed, or absent.
+   * Participants type sentences while receiving auditory feedback that can be immediate, delayed, or absent.
    *
    * @author Original code adapted for jsPsych
    */
@@ -110,8 +83,15 @@ var jsPsychTypingTrial = (function (jspsych) {
     }
 
     trial(display_element, trial) {
+      // Check if required parameter is present
+      if (trial.sentence === null) {
+        console.error("Required parameter 'sentence' missing in typing-trial");
+        this.jsPsych.finishTrial({});
+        return;
+      }
+
       // Initialize variables
-      let currentWord = '';
+      let currentSentence = trial.sentence;
       let userInput = '';
       let isCorrect = true;
       let completed = false;
@@ -120,34 +100,9 @@ var jsPsychTypingTrial = (function (jspsych) {
       let endTime = null;
       let keyPressTimes = [];
       let soundConditions = [];
-      let isRealSentence = true;
+      let hadErrors = false;
       
-      // Randomly set sound mode for this trial if not provided
-      if (trial.soundMode === null) {
-        trial.soundMode = Math.floor(Math.random() * 3); // 0, 1, or 2
-      }
-      
-      // Pre-generate 65 random letter string "sentences"
-      const randomStringSentences = [];
-      for (let i = 0; i < 65; i++) {
-        randomStringSentences.push(generateRandomLetterSentence());
-      }
-      
-      // Get sound mode description for display
-      const getSoundModeDescription = (mode) => {
-        switch(mode) {
-          case 0:
-            return 'Aligned (100% immediate sound)';
-          case 1:
-            return 'Variable (33% immediate • 33% delayed • 33% none)';
-          case 2:
-            return 'Mostly-Aligned (70% immediate • 15% delayed • 15% none)';
-          default:
-            return 'Unknown';
-        }
-      };
-      
-      // Create HTML content
+      // Create HTML content with error message area
       display_element.innerHTML = `
         <div style="max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
           <div id="word-display" style="font-size: 24px; font-family: monospace; letter-spacing: 2px; margin-bottom: 20px;"></div>
@@ -155,11 +110,9 @@ var jsPsychTypingTrial = (function (jspsych) {
           <div style="height: 5px; width: 100%; background-color: #ddd; border-radius: 3px; margin-bottom: 20px;">
             <div id="progress-bar" style="height: 5px; background-color: green; border-radius: 3px; width: 0%; transition: width 0.1s;"></div>
           </div>
+          <div id="error-message" style="font-size: 18px; color: red; font-weight: bold; margin-bottom: 15px; height: 18px;"></div>
           <div style="margin-top: 20px; font-size: 14px; color: #666;">
             Type the text above. Listen carefully to the keystrokes!
-          </div>
-          <div style="margin-top: 10px; font-size: 12px; color: #999;">
-            Sound mode: ${getSoundModeDescription(trial.soundMode)}
           </div>
         </div>
       `;
@@ -168,49 +121,7 @@ var jsPsychTypingTrial = (function (jspsych) {
       const wordDisplay = document.getElementById('word-display');
       const inputDisplay = document.getElementById('input-display');
       const progressBar = document.getElementById('progress-bar');
-
-      // Function to generate a random string of letters of random length between min and max
-      function generateRandomString(minLength, maxLength) {
-        const length = Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
-        const letters = 'abcdefghijklmnopqrstuvwxyz';
-        let result = '';
-        for (let i = 0; i < length; i++) {
-          result += letters.charAt(Math.floor(Math.random() * letters.length));
-        }
-        return result;
-      }
-      
-      // Function to generate a "sentence" of three random letter strings
-      function generateRandomLetterSentence() {
-        const firstWord = generateRandomString(3, 6);
-        const secondWord = generateRandomString(3, 7);
-        const thirdWord = generateRandomString(2, 5);
-        
-        return `${firstWord} ${secondWord} ${thirdWord}`;
-      }
-
-      // Function to generate a random 3-word sentence
-      const generateNormalSentence = () => {
-        const subject = trial.subjects[Math.floor(Math.random() * trial.subjects.length)];
-        const verb = trial.verbs[Math.floor(Math.random() * trial.verbs.length)];
-        const object = trial.objects[Math.floor(Math.random() * trial.objects.length)];
-        
-        return `${subject} ${verb} ${object}`;
-      };
-      
-      // Function to get either a normal sentence or random letter string sentence
-      const getRandomWord = () => {
-        // Determine if we're using a real sentence or random letters
-        isRealSentence = Math.random() > trial.randomStringProbability;
-        
-        if (isRealSentence) {
-          return generateNormalSentence();
-        } else {
-          // Select a random pre-generated letter string sentence
-          const randomIndex = Math.floor(Math.random() * randomStringSentences.length);
-          return randomStringSentences[randomIndex];
-        }
-      };
+      const errorMessage = document.getElementById('error-message');
 
       // Initialize audio context on first user interaction
       const setupAudioContext = () => {
@@ -284,14 +195,14 @@ var jsPsychTypingTrial = (function (jspsych) {
         inputDisplay.innerHTML = '';
         
         // Update the displayed word with character-by-character styling
-        for (let i = 0; i < currentWord.length; i++) {
+        for (let i = 0; i < currentSentence.length; i++) {
           const charSpan = document.createElement('span');
           charSpan.style.display = 'inline-block';
           charSpan.style.minWidth = '20px';
-          charSpan.textContent = currentWord[i];
+          charSpan.textContent = currentSentence[i];
           
           if (i < userInput.length) {
-            if (userInput[i] === currentWord[i]) {
+            if (userInput[i] === currentSentence[i]) {
               charSpan.style.color = 'green';
               charSpan.style.fontWeight = 'bold';
             } else {
@@ -304,7 +215,7 @@ var jsPsychTypingTrial = (function (jspsych) {
         }
         
         // Update progress bar
-        const progress = (userInput.length / currentWord.length) * 100;
+        const progress = (userInput.length / currentSentence.length) * 100;
         progressBar.style.width = `${progress}%`;
         
         if (isCorrect) {
@@ -320,7 +231,7 @@ var jsPsychTypingTrial = (function (jspsych) {
           charSpan.style.minWidth = '20px';
           charSpan.textContent = userInput[i];
           
-          if (userInput[i] === currentWord[i]) {
+          if (userInput[i] === currentSentence[i]) {
             charSpan.style.color = 'green';
             charSpan.style.fontWeight = 'bold';
           } else {
@@ -351,37 +262,43 @@ var jsPsychTypingTrial = (function (jspsych) {
         playSound();
         
         const newInput = userInput + e.key;
+        
+        // Check if this input would match the current position
+        const currentPosition = userInput.length;
+        const correctCharAtPosition = currentSentence[currentPosition];
+        
+        if (e.key !== correctCharAtPosition) {
+          // Character doesn't match - show error but allow to continue
+          isCorrect = false;
+          hadErrors = true;
+          errorMessage.textContent = "Incorrect";
+        }
+        
         userInput = newInput;
         
-        // Check if input matches current word so far
-        if (currentWord.startsWith(newInput)) {
-          isCorrect = true;
+        // Check if we've reached the end of the sentence (right or wrong)
+        if (userInput.length === currentSentence.length) {
+          completed = true;
+          endTime = performance.now();
           
-          // Check if word is complete
-          if (newInput === currentWord) {
-            completed = true;
-            endTime = performance.now();
-            
-            // End the trial after feedback duration
-            setTimeout(() => {
-              endTrial();
-            }, trial.feedbackDuration);
-          }
-        } else {
-          isCorrect = false;
+          // End the trial after feedback duration
+          setTimeout(() => {
+            endTrial();
+          }, trial.feedbackDuration);
         }
         
         // Update the display
         updateDisplay();
       };
 
-      // Initialize trial with a random word
+      // Initialize trial
       const initializeTrial = () => {
-        currentWord = getRandomWord();
         userInput = '';
         isCorrect = true;
+        hadErrors = false;
         completed = false;
         startTime = performance.now();
+        errorMessage.textContent = ""; // Clear any error message
         updateDisplay();
         
         // Add event listeners
@@ -397,18 +314,18 @@ var jsPsychTypingTrial = (function (jspsych) {
         
         // Calculate reaction time and accuracy
         const reactionTime = endTime ? endTime - startTime : null;
-        const accuracy = userInput === currentWord;
+        const accuracy = userInput === currentSentence;
         
         // Save data
         var trial_data = {
-          target_word: currentWord,
+          target_sentence: currentSentence,
           user_input: userInput,
           accuracy: accuracy,
           reaction_time: reactionTime,
           key_press_times: keyPressTimes,
           sound_conditions: soundConditions,
           sound_mode: trial.soundMode,
-          is_real_sentence: isRealSentence
+          had_errors: hadErrors
         };
         
         // Clear the display
@@ -418,15 +335,14 @@ var jsPsychTypingTrial = (function (jspsych) {
         this.jsPsych.finishTrial(trial_data);
       };
 
-      // Set up trial timeout if specified
-      if (trial.trialDuration !== null) {
-        this.jsPsych.pluginAPI.setTimeout(() => {
-          if (!completed) {
-            endTime = performance.now();
-            endTrial();
-          }
-        }, trial.trialDuration);
-      }
+      // Set up trial timeout - default to 10 seconds if not specified
+      const timeoutDuration = trial.trialDuration !== null ? trial.trialDuration : 10000;
+      this.jsPsych.pluginAPI.setTimeout(() => {
+        if (!completed) {
+          endTime = performance.now();
+          endTrial();
+        }
+      }, timeoutDuration);
 
       // Initialize the trial
       initializeTrial();
