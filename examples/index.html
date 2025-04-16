@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Typing Experiment</title>
+  <script src="https://unpkg.com/jspsych@7.3.1"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-likert@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-audio-button-response@1.1.2"></script>
+  <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
+  <!-- Load your custom typing trial plugin -->
+  <script src="../src/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.1/css/jspsych.css">
+</head>
+
+<body></body>
+<script>
+  // Initialize a global score variable
+  let totalScore = 0;
+  
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      jsPsych.data.displayData();
+    }
+  });
+
+  const subject_id = jsPsych.randomization.randomID(10);
+              const filename = `${subject_id}.csv`;
+            
+  // Lists for sentence generation
+  const subjects = [
+    'I', 'You', 'He', 'She', 'They', 'We', 'Dogs', 'Cats', 
+    'Birds', 'People', 'Children', 'Students', 'Teachers', 'Parents'
+  ];
+  
+  const verbs = [
+    'eat', 'run', 'jump', 'play', 'sing', 'dance', 'write', 'read',
+    'watch', 'hear', 'see', 'feel', 'build', 'create'
+  ];
+  
+  const objects = [
+    'food', 'games', 'books', 'music', 'movies', 'cards', 'toys',
+    'sports', 'websites', 'papers', 'stories', 'songs'
+  ];
+
+  // Function to generate random real sentences
+  function generateNormalSentence() {
+    const subject = subjects[Math.floor(Math.random() * subjects.length)];
+    const verb = verbs[Math.floor(Math.random() * verbs.length)];
+    const object = objects[Math.floor(Math.random() * objects.length)];
+    
+    return `${subject} ${verb} ${object}`;
+  }
+  
+  // Function to generate random letter strings
+  function generateRandomString(minLength, maxLength) {
+    const length = Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
+    const letters = 'abcdefghijklmnopqrstuvwxyzAHMNPRSTUVWXZ';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += letters.charAt(Math.floor(Math.random() * letters.length));
+    }
+    return result;
+  }
+  
+  function generateRandomLetterSentence() {
+    const firstWord = generateRandomString(3, 6);
+    const secondWord = generateRandomString(3, 7);
+    const thirdWord = generateRandomString(2, 5);
+    
+    return `${firstWord} ${secondWord} ${thirdWord}`;
+  }
+
+  // Define a set of trials with balanced conditions
+  // Create arrays to hold all possible condition combinations
+  const conditions = [];
+  for (let soundMode = 0; soundMode < 3; soundMode++) {
+    for (let sentenceType = 0; sentenceType < 2; sentenceType++) {
+      conditions.push({
+        soundMode: soundMode,
+        useRealSentence: sentenceType === 0
+      });
+    }
+  }
+
+  // Calculate how many repetitions of each condition we need
+  const numTrials = 6; // Example: multiple of 6 (3 sound modes × 2 sentence types)
+  const repetitionsPerCondition = numTrials / conditions.length;
+
+  // Create timeline
+  let timeline = [];
+  
+  // Add welcome screen
+  const welcome = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `
+      <div style="max-width: 800px; margin: 0 auto;">
+        <h1>Welcome to the Typing Experiment</h1>
+        <p>This experiment involves listening to sounds while typing. Before we begin, we need to make sure you can hear the audio clearly.</p>
+        <p>Please make sure your volume is turned on and set to a comfortable level.</p>
+      </div>
+    `,
+    choices: ['Continue to Sound Check'],
+    post_trial_gap: 500
+  };
+  
+  timeline.push(welcome);
+  
+  // Create an audio test function to generate a test tone
+  function generateTestTone() {
+    // Create an audio context
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Create a buffer for 1 second of audio
+    const sampleRate = audioContext.sampleRate;
+    const buffer = audioContext.createBuffer(1, sampleRate, sampleRate);
+    
+    // Fill the buffer with a simple tone (similar to the keystroke sound)
+    const data = buffer.getChannelData(0);
+    const frequency = 600; // Hz
+    
+    for (let i = 0; i < sampleRate; i++) {
+      // Create a tone that lasts 0.3 seconds and fades out
+      if (i < 0.3 * sampleRate) {
+        const fadeOut = 1 - (i / (0.3 * sampleRate));
+        data[i] = 0.5 * Math.sin(2 * Math.PI * frequency * i / sampleRate) * fadeOut;
+      } else {
+        data[i] = 0;
+      }
+    }
+    
+    // Create an audio source from the buffer
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    
+    return {
+      play: function() {
+        // Create a new source each time (can only play once)
+        const newSource = audioContext.createBufferSource();
+        newSource.buffer = buffer;
+        newSource.connect(audioContext.destination);
+        newSource.start();
+      }
+    };
+  }
+  
+  // Add audio test trial using a custom HTML trial
+  const audioTest = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: function() {
+      // Create a unique ID for this trial
+      const audioTestId = "audio-test-" + Math.floor(Math.random() * 10000);
+      
+      return `
+        <div style="max-width: 800px; margin: 0 auto;">
+          <h2>Audio Test</h2>
+          <p>Click the "Play Test Sound" button below and listen for a sound similar to what you'll hear during the experiment.</p>
+          <button id="${audioTestId}" class="jspsych-btn" style="background-color: #4CAF50; margin-bottom: 20px;">Play Test Sound</button>
+          <p>After clicking the button, confirm whether you can hear the sound clearly by selecting the appropriate option below.</p>
+          <p><strong>Note:</strong> In the actual experiment, you'll hear similar sounds when typing. It's important that you can hear these sounds clearly.</p>
+        </div>
+      `;
+    },
+    choices: ["I couldn't hear anything", "I heard the sound, but it was too quiet", "I heard the sound clearly"],
+    on_load: function() {
+      // Find the test sound button using the ID pattern
+      const buttonElement = document.querySelector('button[id^="audio-test-"]');
+      
+      // Create the test tone
+      const testTone = generateTestTone();
+      
+      // Add click event listener to the test sound button
+      buttonElement.addEventListener('click', function() {
+        testTone.play();
+      });
+    },
+    on_finish: function(data) {
+      // Check if the participant heard the sound clearly
+      if (data.response !== 2) {
+        // If they didn't hear it clearly, repeat the audio test
+        jsPsych.data.addProperties({audio_check_passed: false});
+      } else {
+        jsPsych.data.addProperties({audio_check_passed: true});
+      }
+    }
+  };
+  
+  timeline.push(audioTest);
+  
+  // Conditional trial to repeat audio test if needed
+  const audioTestRepeat = {
+    timeline: [
+      {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: `
+          <div style="max-width: 800px; margin: 0 auto;">
+            <h2>Audio Problem Detected</h2>
+            <p>It seems you're having trouble hearing the sounds. Please:</p>
+            <ul>
+              <li>Make sure your volume is turned up</li>
+              <li>Check that your speakers or headphones are properly connected</li>
+              <li>Try using headphones if you're in a noisy environment</li>
+            </ul>
+            <p>We'll try the sound test again.</p>
+          </div>
+        `,
+        choices: ['Try Again'],
+      },
+      audioTest
+    ],
+    conditional_function: function() {
+      // Repeat if the participant didn't hear the sound clearly
+      return !jsPsych.data.get().last(1).values()[0].audio_check_passed;
+    }
+  };
+  
+  timeline.push(audioTestRepeat);
+  
+  // Add instructions after successful audio test
+  const instructions = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style="max-width: 800px; margin: 0 auto;">
+        <h1>Typing Experiment Instructions</h1>
+        <p>In this experiment, you will be asked to type sentences or strings of text.</p>
+        <p>When the trials begin, a string of letters will appear on the screen. Please type the letters you see as quickly as possible. You may type in whatever way feels more comfortable for you. Each trial will end once you reach the end of the string of letters or after 15 seconds elapses. As you type, you will hear clicking noises, please listen carefully for these sounds. If you make a mistake—don't worry! Just keep going. Also, please note that the words are case sensitive, and you should type a space between each word where appropriate. Soon after you finish typing, you will be asked to rate how much control you had over the clicking noises between 1 (no control at all) and 5 (full control). Under "full control" the tone plays in sync with each key that is pressed. "No control at all" means that the tone plays but is not related to your key presses.</p>
+        <p>Press any key to begin.</p>
+      </div>
+    `,
+    post_trial_gap: 500
+  };
+  
+  timeline.push(instructions);
+
+  // Generate trials with balanced conditions
+  for (let i = 0; i < repetitionsPerCondition; i++) {
+    // Make a copy of conditions array for this repetition
+    const conditionSet = [...conditions];
+    
+    // Shuffle the conditions to randomize order
+    for (let j = conditionSet.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      [conditionSet[j], conditionSet[k]] = [conditionSet[k], conditionSet[j]];
+    }
+    
+    // Add trials for this set of conditions
+    for (let j = 0; j < conditionSet.length; j++) {
+      const condition = conditionSet[j];
+      
+      // Generate the sentence based on condition
+      const sentence = condition.useRealSentence ? 
+        generateNormalSentence() : 
+        generateRandomLetterSentence();
+      
+      // Create a mini-timeline for each trial sequence (typing + rating + continue)
+      const typingTrial = {
+        type: jsPsychTypingTrial,
+        sentence: sentence,
+        soundMode: condition.soundMode,
+        data: {
+          is_real_sentence: condition.useRealSentence,
+          trial_number: timeline.length + 1
+        },
+        on_finish: function(data) {
+          // Increment score if the sentence was typed correctly
+          if (data.accuracy) {
+            totalScore += 1;
+            // Update the global window object to make score accessible across trials
+            window.totalScore = totalScore;
+          }
+        }
+      };
+      
+      // Create the rating scale trial
+      const ratingTrial = {
+        type: jsPsychSurveyLikert,
+        preamble: '<p>Please answer the following question:</p>',
+        questions: [
+          {
+            prompt: "Rate how much control you had over the sounds on a scale of 1-7",
+            labels: ["1<br>No control at all", "2", "3", "4<br>Moderate", "5", "6", "7<br>Full control"],
+            required: true
+          }
+        ],
+        button_label: 'Submit Rating',
+        data: {
+          task: 'sound_control_rating',
+          associated_trial: timeline.length + 1
+        }
+      };
+      
+      // Add the three trials to the timeline
+      timeline.push(typingTrial);
+      timeline.push(ratingTrial);
+    }
+  }
+  
+  const save_data = {
+  type: jsPsychPipe,
+  action: "save",
+  experiment_id: "3e3TBr7v8mcc",
+  filename: filename,
+  data_string: ()=>jsPsych.data.get().csv()
+};
+  timeline.push(save_data);
+
+  
+  // Add final thank you screen with final score
+  const thankYou = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: function() {
+      return `
+        <div style="max-width: 800px; margin: 0 auto;">
+          <h2>Experiment Complete!</h2>
+          <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
+            Your Final Score: <span style="font-weight: bold; color: #4CAF50;">${totalScore}</span> out of ${numTrials}
+          </div>
+          <p>Thank you for participating in this study! The experiment you just completed is a part of a research project exploring how individuals perceive their sense of control when they are performing actions they are familiar and unfamiliar with. In this case, this was done through the game where you typed words and nonwords. Your rating of how much control you felt over the tones and your hands will be helpful for us to understand sense of control in relation to skill.</p>
+          <p>We appreciate your time and contribution to our research. Thank you again!</p>
+        </div>
+      `;
+    }
+  };
+  
+  timeline.push(thankYou);
+
+
+
+
+  // Run the experiment
+  jsPsych.run(timeline);
+</script>
+
+</html>
