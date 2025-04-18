@@ -102,7 +102,7 @@ var jsPsychTypingTrial = (function (jspsych) {
       let soundConditions = [];
       let hadErrors = false;
       
-      // Create HTML content with error message area
+      // Create HTML content with error message area (keeping the div but not using it)
       display_element.innerHTML = `
         <div style="max-width: 600px; margin: 0 auto; padding: 20px; text-align: center;">
           <div id="word-display" style="font-size: 24px; font-family: monospace; letter-spacing: 2px; margin-bottom: 20px;"></div>
@@ -110,7 +110,7 @@ var jsPsychTypingTrial = (function (jspsych) {
           <div style="height: 5px; width: 100%; background-color: #ddd; border-radius: 3px; margin-bottom: 20px;">
             <div id="progress-bar" style="height: 5px; background-color: green; border-radius: 3px; width: 0%; transition: width 0.1s;"></div>
           </div>
-          <div id="error-message" style="font-size: 18px; color: red; font-weight: bold; margin-bottom: 15px; height: 18px;"></div>
+          <div id="error-message" style="font-size: 18px; height: 18px;"></div>
           <div style="margin-top: 20px; font-size: 14px; color: #666;">
             Type the text above. Listen carefully to the keystrokes!
           </div>
@@ -268,10 +268,10 @@ var jsPsychTypingTrial = (function (jspsych) {
         const correctCharAtPosition = currentSentence[currentPosition];
         
         if (e.key !== correctCharAtPosition) {
-          // Character doesn't match - show error but allow to continue
+          // Character doesn't match - just update flags, no error message display
           isCorrect = false;
           hadErrors = true;
-          errorMessage.textContent = "Incorrect";
+          // Removed: errorMessage.textContent = "Incorrect";
         }
         
         userInput = newInput;
