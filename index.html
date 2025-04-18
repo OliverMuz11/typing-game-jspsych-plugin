@@ -178,19 +178,20 @@
     },
     on_finish: function(data) {
       // Check if the participant heard the sound clearly
-      if (data.response !== 2) {
-        // If they didn't hear it clearly, repeat the audio test
-        jsPsych.data.addProperties({audio_check_passed: false});
-      } else {
+      if (data.response === 2) {
+        // If they heard it clearly (option index 2), mark as passed
         jsPsych.data.addProperties({audio_check_passed: true});
+      } else {
+        // If they didn't hear it clearly, mark as failed
+        jsPsych.data.addProperties({audio_check_passed: false});
       }
     }
   };
   
   timeline.push(audioTest);
   
-  // Conditional trial to repeat audio test if needed
-  const audioTestRepeat = {
+  // Audio test repeat loop - only show this if they didn't select "heard clearly"
+  const audioTestLoop = {
     timeline: [
       {
         type: jsPsychHtmlButtonResponse,
@@ -203,6 +204,7 @@
               <li>Check that your speakers or headphones are properly connected</li>
               <li>Try using headphones if you're in a noisy environment</li>
             </ul>
+            <p><strong>You must be able to hear the sounds clearly to participate in this experiment.</strong></p>
             <p>We'll try the sound test again.</p>
           </div>
         `,
@@ -211,12 +213,16 @@
       audioTest
     ],
     conditional_function: function() {
-      // Repeat if the participant didn't hear the sound clearly
+      // Only show this if the last response was NOT "heard clearly"
+      return !jsPsych.data.get().last(1).values()[0].audio_check_passed;
+    },
+    loop_function: function() {
+      // Continue looping if they didn't hear the sound clearly
       return !jsPsych.data.get().last(1).values()[0].audio_check_passed;
     }
   };
   
-  timeline.push(audioTestRepeat);
+  timeline.push(audioTestLoop);
   
   // Add instructions after successful audio test
   const instructions = {
@@ -224,9 +230,31 @@
     stimulus: `
       <div style="max-width: 800px; margin: 0 auto;">
         <h1>Typing Experiment Instructions</h1>
+        
         <p>In this experiment, you will be asked to type sentences or strings of text.</p>
-        <p>When the trials begin, a string of letters will appear on the screen. Please type the letters you see as quickly as possible. You may type in whatever way feels more comfortable for you. Each trial will end once you reach the end of the string of letters or after 15 seconds elapses. As you type, you will hear clicking noises, please listen carefully for these sounds. If you make a mistake—don't worry! Just keep going. Also, please note that the words are case sensitive, and you should type a space between each word where appropriate. Soon after you finish typing, you will be asked to rate how much control you had over the clicking noises between 1 (no control at all) and 5 (full control). Under "full control" the tone plays in sync with each key that is pressed. "No control at all" means that the tone plays but is not related to your key presses.</p>
-        <p>Press any key to begin.</p>
+        
+        <div style="background-color: #f9f9f9; border-left: 4px solid #4CAF50; padding: 15px; margin: 15px 0;">
+          <h3 style="margin-top: 0;">How it works:</h3>
+          <ul style="padding-left: 20px;">
+            <li>A text string will appear on your screen</li>
+            <li>Type the text as quickly and accurately as possible</li>
+            <li>Each trial ends when you complete the text or after 15 seconds</li>
+            <li>You'll hear clicking sounds as you type - listen carefully to these</li>
+            <li><strong>If you make a mistake—don't worry! Just keep going</strong></li>
+            <li>Remember: Text is case sensitive and spaces between words are required</li>
+          </ul>
+        </div>
+        
+        <div style="background-color: #f0f7ff; border-left: 4px solid #2196F3; padding: 15px; margin: 15px 0;">
+          <h3 style="margin-top: 0;">After each typing task:</h3>
+          <p>You'll rate the degree to which the tones corresponded to your key presses on a scale of 1-7:</p>
+          <ul style="padding-left: 20px;">
+            <li><strong>7 (Full correspondence):</strong> Tones play in perfect sync with each key press</li>
+            <li><strong>1 (No correspondence):</strong> Tones feel completely independent of your key presses</li>
+          </ul>
+        </div>
+        
+        <p style="margin-top: 25px; font-weight: bold; text-align: center;">Press any key to begin</p>
       </div>
     `,
     post_trial_gap: 500
@@ -325,9 +353,6 @@
   };
   
   timeline.push(thankYou);
-
-
-
 
   // Run the experiment
   jsPsych.run(timeline);
