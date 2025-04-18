@@ -16,8 +16,9 @@
 
 <body></body>
 <script>
-  // Initialize a global score variable
-  let totalScore = 0;
+  // Initialize global variables for tracking scores
+  let practiceScore = 0;
+  let blockScores = [0, 0, 0, 0]; // Track scores for each of the 4 test blocks
   
   const jsPsych = initJsPsych({
     on_finish: function() {
@@ -26,7 +27,7 @@
   });
 
   const subject_id = jsPsych.randomization.randomID(10);
-              const filename = `${subject_id}.csv`;
+  const filename = `${subject_id}.csv`;
             
   // Lists for sentence generation
   const subjects = [
@@ -72,21 +73,16 @@
     return `${firstWord} ${secondWord} ${thirdWord}`;
   }
 
-  // Define a set of trials with balanced conditions
-  // Create arrays to hold all possible condition combinations
-  const conditions = [];
+  // Define conditions (3 sound modes × 2 sentence types)
+  const allConditions = [];
   for (let soundMode = 0; soundMode < 3; soundMode++) {
     for (let sentenceType = 0; sentenceType < 2; sentenceType++) {
-      conditions.push({
+      allConditions.push({
         soundMode: soundMode,
         useRealSentence: sentenceType === 0
       });
     }
   }
-
-  // Calculate how many repetitions of each condition we need
-  const numTrials = 6; // Example: multiple of 6 (3 sound modes × 2 sentence types)
-  const repetitionsPerCondition = numTrials / conditions.length;
 
   // Create timeline
   let timeline = [];
@@ -224,7 +220,7 @@
   
   timeline.push(audioTestLoop);
   
-  // Add instructions after successful audio test
+  // Add updated instructions after successful audio test
   const instructions = {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
@@ -235,26 +231,26 @@
         
         <div style="background-color: #f9f9f9; border-left: 4px solid #4CAF50; padding: 15px; margin: 15px 0;">
           <h3 style="margin-top: 0;">How it works:</h3>
-          <ul style="padding-left: 20px;">
-            <li>A text string will appear on your screen.</li>
-            <li>Type the text as quickly and accurately as possible.</li>
-            <li>Each trial ends when you complete the text or after 15 seconds.</li>
-            <li>You'll hear sounds as you type - listen carefully to these.</li>
-            <li><strong>If you make a mistake—don't worry! Just keep going.</strong></li>
-            <li>Text is case sensitive and spaces between words are required.</li>
-          </ul>
+          <p>A text string will appear on your screen. Type the text as quickly and accurately as possible. Each trial ends when you complete the text or after 15 seconds. You'll hear sounds as you type - listen carefully to these. <strong>If you make a mistake—don't worry! Just keep going.</strong> Text is case sensitive and spaces between words are required.</p>
         </div>
         
         <div style="background-color: #f0f7ff; border-left: 4px solid #2196F3; padding: 15px; margin: 15px 0;">
           <h3 style="margin-top: 0;">After each typing task:</h3>
           <p>You'll rate the degree to which the tones corresponded to your key presses on a scale of 1-7:</p>
-          <ul style="padding-left: 20px;">
-            <li><strong>1 (No correspondence):</strong> Tones feel completely independent of your key presses.</li>
-            <li><strong>7 (Full correspondence):</strong> Tones play in perfect sync with each key press.</li>
-          </ul>
+          <p><strong>1 (No correspondence):</strong> Tones feel completely independent of your key presses.</p>
+          <p><strong>7 (Full correspondence):</strong> Tones play in perfect sync with each key press.</p>
         </div>
         
-        <p style="margin-top: 25px; font-weight: bold; text-align: center;">Press any key to begin</p>
+        <div style="background-color: #fff4e5; border-left: 4px solid #ff9800; padding: 15px; margin: 15px 0;">
+          <h3 style="margin-top: 0;">Experiment structure:</h3>
+          <p>The experiment consists of a practice phase followed by the main experiment:</p>
+          <p>• First, you'll complete <strong>12 practice trials</strong> to get familiar with the task.</p>
+          <p>• Then, you'll complete <strong>4 blocks of 30 trials each</strong>.</p>
+          <p>• After each block, you'll see how many words you typed correctly.</p>
+          <p>• You can take a short break between blocks if needed.</p>
+        </div>
+        
+        <p style="margin-top: 25px; font-weight: bold; text-align: center;">Press any key to begin the practice trials</p>
       </div>
     `,
     post_trial_gap: 500
@@ -262,42 +258,162 @@
   
   timeline.push(instructions);
 
+  // Practice phase instructions
+  const practiceInstructions = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `
+      <div style="max-width: 800px; margin: 0 auto;">
+        <h2>Practice Phase</h2>
+        <p>You will now complete 12 practice trials to get familiar with the task.</p>
+        <p>Remember to type the text as accurately as possible and pay attention to the sounds.</p>
+      </div>
+    `,
+    choices: ['Begin Practice'],
+    post_trial_gap: 500
+  };
+  
+  timeline.push(practiceInstructions);
 
-  // Generate trials with balanced conditions
-  for (let i = 0; i < repetitionsPerCondition; i++) {
-    // Make a copy of conditions array for this repetition
-    const conditionSet = [...conditions];
+  // Generate practice trials
+  // Create a balanced set of practice trials (2 of each condition)
+  const practiceConditions = [];
+  for (let i = 0; i < 2; i++) { // 2 repetitions of each condition
+    practiceConditions.push(...allConditions);
+  }
+  
+  // Shuffle practice conditions
+  for (let i = practiceConditions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [practiceConditions[i], practiceConditions[j]] = [practiceConditions[j], practiceConditions[i]];
+  }
+  
+  // Add practice trials to timeline
+  for (let i = 0; i < practiceConditions.length; i++) {
+    const condition = practiceConditions[i];
     
-    // Shuffle the conditions to randomize order
-    for (let j = conditionSet.length - 1; j > 0; j--) {
-      const k = Math.floor(Math.random() * (j + 1));
-      [conditionSet[j], conditionSet[k]] = [conditionSet[k], conditionSet[j]];
+    // Generate the sentence based on condition
+    const sentence = condition.useRealSentence ? 
+      generateNormalSentence() : 
+      generateRandomLetterSentence();
+    
+    // Create typing trial
+    const typingTrial = {
+      type: jsPsychTypingTrial,
+      sentence: sentence,
+      soundMode: condition.soundMode,
+      data: {
+        phase: 'practice',
+        trial_number: i + 1,
+        is_real_sentence: condition.useRealSentence
+      },
+      on_finish: function(data) {
+        // Increment practice score if the sentence was typed correctly
+        if (data.accuracy) {
+          practiceScore += 1;
+        }
+      }
+    };
+    
+    // Create the rating scale trial
+    const ratingTrial = {
+      type: jsPsychSurveyLikert,
+      preamble: '<p>Please answer the following question:</p>',
+      questions: [
+        {
+          prompt: "Rate how much your key presses corresponded to the sounds on a scale of 1-7",
+          labels: ["1<br>No control at all", "2", "3", "4<br>Moderate", "5", "6", "7<br>Full control"],
+          required: true
+        }
+      ],
+      button_label: 'Submit Rating',
+      data: {
+        phase: 'practice',
+        task: 'sound_control_rating',
+        associated_trial: i + 1
+      }
+    };
+    
+    // Add trials to timeline
+    timeline.push(typingTrial);
+    timeline.push(ratingTrial);
+  }
+
+  // Show practice results and introduce main experiment
+  const practiceComplete = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: function() {
+      return `
+        <div style="max-width: 800px; margin: 0 auto;">
+          <h2>Practice Complete!</h2>
+          <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
+            Your Practice Score: <span style="font-weight: bold; color: #4CAF50;">${practiceScore}</span> out of 12
+          </div>
+          <p>Now you'll begin the main experiment consisting of 4 blocks with 30 trials each.</p>
+          <p>After each block, you'll see your score for that block.</p>
+        </div>
+      `;
+    },
+    choices: ['Begin Main Experiment'],
+    post_trial_gap: 500
+  };
+  
+  timeline.push(practiceComplete);
+
+  // Create 4 blocks of 30 trials each
+  for (let block = 0; block < 4; block++) {
+    // Create a block introduction
+    const blockIntro = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <div style="max-width: 800px; margin: 0 auto;">
+          <h2>Block ${block + 1} of 4</h2>
+          <p>You will now complete 30 trials in this block.</p>
+          <p>Remember to type the text as accurately as possible and pay attention to the sounds.</p>
+        </div>
+      `,
+      choices: ['Begin Block'],
+      post_trial_gap: 500
+    };
+    
+    timeline.push(blockIntro);
+    
+    // Create a balanced set of conditions for this block
+    // For 30 trials with 6 conditions, we need 5 repetitions of each condition
+    const blockConditions = [];
+    for (let i = 0; i < 5; i++) { // 5 repetitions of each condition
+      blockConditions.push(...allConditions);
     }
     
-    // Add trials for this set of conditions
-    for (let j = 0; j < conditionSet.length; j++) {
-      const condition = conditionSet[j];
+    // Shuffle the conditions for this block
+    for (let i = blockConditions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [blockConditions[i], blockConditions[j]] = [blockConditions[j], blockConditions[i]];
+    }
+    
+    // Add trials for this block
+    for (let trial = 0; trial < blockConditions.length; trial++) {
+      const condition = blockConditions[trial];
       
       // Generate the sentence based on condition
       const sentence = condition.useRealSentence ? 
         generateNormalSentence() : 
         generateRandomLetterSentence();
       
-      // Create a mini-timeline for each trial sequence (typing + rating + continue)
+      // Create typing trial
       const typingTrial = {
         type: jsPsychTypingTrial,
         sentence: sentence,
         soundMode: condition.soundMode,
         data: {
-          is_real_sentence: condition.useRealSentence,
-          trial_number: timeline.length + 1
+          phase: 'test',
+          block: block + 1,
+          trial_number: trial + 1,
+          is_real_sentence: condition.useRealSentence
         },
         on_finish: function(data) {
-          // Increment score if the sentence was typed correctly
+          // Increment block score if the sentence was typed correctly
           if (data.accuracy) {
-            totalScore += 1;
-            // Update the global window object to make score accessible across trials
-            window.totalScore = totalScore;
+            blockScores[block] += 1;
           }
         }
       };
@@ -315,36 +431,72 @@
         ],
         button_label: 'Submit Rating',
         data: {
+          phase: 'test',
+          block: block + 1,
           task: 'sound_control_rating',
-          associated_trial: timeline.length + 1
+          associated_trial: trial + 1
         }
       };
       
-      // Add the three trials to the timeline
+      // Add trials to timeline
       timeline.push(typingTrial);
       timeline.push(ratingTrial);
+    }
+    
+    // Block completion screen (except for the last block)
+    if (block < 3) {
+      const blockComplete = {
+        type: jsPsychHtmlButtonResponse,
+        stimulus: function() {
+          return `
+            <div style="max-width: 800px; margin: 0 auto;">
+              <h2>Block ${block + 1} Complete!</h2>
+              <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
+                Your Score for Block ${block + 1}: <span style="font-weight: bold; color: #4CAF50;">${blockScores[block]}</span> out of 30
+              </div>
+              <p>You may take a short break if needed.</p>
+              <p>When you are ready, click the button to continue to the next block.</p>
+            </div>
+          `;
+        },
+        choices: ['Continue to Next Block'],
+        post_trial_gap: 500
+      };
+      
+      timeline.push(blockComplete);
     }
   }
   
   const save_data = {
-  type: jsPsychPipe,
-  action: "save",
-  experiment_id: "3e3TBr7v8mcc",
-  filename: filename,
-  data_string: ()=>jsPsych.data.get().csv()
-};
-  timeline.push(save_data);
-
+    type: jsPsychPipe,
+    action: "save",
+    experiment_id: "3e3TBr7v8mcc",
+    filename: filename,
+    data_string: ()=>jsPsych.data.get().csv()
+  };
   
-  // Add final thank you screen with final score
+  timeline.push(save_data);
+  
+  // Add final thank you screen with total score
   const thankYou = {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: function() {
+      // Calculate total test score
+      const totalTestScore = blockScores.reduce((a, b) => a + b, 0);
       return `
         <div style="max-width: 800px; margin: 0 auto;">
           <h2>Experiment Complete!</h2>
           <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
-            Your Final Score: <span style="font-weight: bold; color: #4CAF50;">${totalScore}</span> out of ${numTrials}
+            Your Final Score: <span style="font-weight: bold; color: #4CAF50;">${totalTestScore}</span> out of 120
+          </div>
+          <div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
+            <p><strong>Block Scores:</strong></p>
+            <ul>
+              <li>Block 1: ${blockScores[0]} out of 30</li>
+              <li>Block 2: ${blockScores[1]} out of 30</li>
+              <li>Block 3: ${blockScores[2]} out of 30</li>
+              <li>Block 4: ${blockScores[3]} out of 30</li>
+            </ul>
           </div>
           <p>Thank you for participating in this study! The experiment you just completed is a part of a research project exploring how individuals perceive their sense of control when they are performing actions they are familiar and unfamiliar with. In this case, this was done through the game where you typed words and nonwords. Your rating of how much control you felt over the tones will be helpful for us to understand sense of control in relation to skill.</p>
           <p>We appreciate your time and contribution to our research. Thank you again!</p>
