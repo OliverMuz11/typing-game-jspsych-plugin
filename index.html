@@ -20,11 +20,6 @@
   let practiceScore = 0;
   let blockScores = [0, 0, 0, 0]; // Track scores for each of the 4 test blocks
   
-  const jsPsych = initJsPsych({
-    on_finish: function() {
-      jsPsych.data.displayData();
-    }
-  });
 
   const subject = jsPsych.randomization.randomID(10);
   const filename = `${subject}.csv`;
