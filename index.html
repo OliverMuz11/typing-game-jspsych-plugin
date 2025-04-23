@@ -246,7 +246,7 @@
           <h3 style="margin-top: 0;">Experiment structure:</h3>
           <p>The experiment consists of a practice phase followed by the main experiment:</p>
           <p>• First, you'll complete <strong>12 practice trials</strong> to get familiar with the task.</p>
-          <p>• Then, you'll complete <strong>4 blocks of 15 trials each</strong>.</p>
+          <p>• Then, you'll complete <strong>4 blocks of 18 trials each</strong>.</p>
           <p>• After each block, you'll see how many words you typed correctly.</p>
           <p>• You can take a short break between blocks if needed.</p>
         </div>
@@ -349,7 +349,7 @@
           <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
             Your Practice Score: <span style="font-weight: bold; color: #4CAF50;">${practiceScore}</span> out of 12
           </div>
-          <p>Now you'll begin the main experiment consisting of 4 blocks with 15 trials each.</p>
+          <p>Now you'll begin the main experiment consisting of 4 blocks with 18 trials each.</p>
           <p>After each block, you'll see your score for that block.</p>
         </div>
       `;
@@ -360,7 +360,7 @@
   
   timeline.push(practiceComplete);
 
-  // Create 4 blocks of 15 trials each
+  // Create 4 blocks of 18 trials each
   for (let block = 0; block < 4; block++) {
     // Create a block introduction
     const blockIntro = {
@@ -368,7 +368,7 @@
       stimulus: `
         <div style="max-width: 800px; margin: 0 auto;">
           <h2>Block ${block + 1} of 4</h2>
-          <p>You will now complete 15 trials in this block.</p>
+          <p>You will now complete 18 trials in this block.</p>
           <p>Remember to type the text as accurately as possible and pay attention to the sounds.</p>
         </div>
       `,
@@ -378,23 +378,11 @@
     
     timeline.push(blockIntro);
     
-    // Create a balanced set of conditions for this block
-    // For 15 trials with 6 conditions, we need 2.5 repetitions of each condition
-    // So we'll do 2 complete sets (12 trials) and then add 3 random ones to get to 15
+    // Create a balanced set of conditions for this block(18 trials) 
     const blockConditions = [];
-    for (let i = 0; i < 2; i++) { // 2 complete repetitions of each condition (12 trials)
+    for (let i = 0; i < 3; i++) { // 2 complete repetitions of each condition (12 trials)
       blockConditions.push(...allConditions);
     }
-    
-    // Add 3 more random conditions to get to 15 trials
-    const extraConditions = [...allConditions]; // Copy the conditions
-    // Shuffle the extra conditions
-    for (let i = extraConditions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [extraConditions[i], extraConditions[j]] = [extraConditions[j], extraConditions[i]];
-    }
-    // Add the first 3 shuffled conditions
-    blockConditions.push(...extraConditions.slice(0, 3));
     
     // Shuffle all conditions for this block
     for (let i = blockConditions.length - 1; i > 0; i--) {
@@ -464,7 +452,7 @@
             <div style="max-width: 800px; margin: 0 auto;">
               <h2>Block ${block + 1} Complete!</h2>
               <div style="font-size: 24px; margin: 30px 0; padding: 20px; background-color: #f0f0f0; border-radius: 10px; text-align: center;">
-                Your Score for Block ${block + 1}: <span style="font-weight: bold; color: #4CAF50;">${blockScores[block]}</span> out of 15
+                Your Score for Block ${block + 1}: <span style="font-weight: bold; color: #4CAF50;">${blockScores[block]}</span> out of 18
               </div>
               <p>You may take a short break if needed.</p>
               <p>When you are ready, click the button to continue to the next block.</p>
@@ -504,14 +492,15 @@
           <div style="margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-radius: 5px;">
             <p><strong>Block Scores:</strong></p>
             <ul>
-              <li>Block 1: ${blockScores[0]} out of 15</li>
-              <li>Block 2: ${blockScores[1]} out of 15</li>
-              <li>Block 3: ${blockScores[2]} out of 15</li>
-              <li>Block 4: ${blockScores[3]} out of 15</li>
+              <li>Block 1: ${blockScores[0]} out of 18</li>
+              <li>Block 2: ${blockScores[1]} out of 18</li>
+              <li>Block 3: ${blockScores[2]} out of 18</li>
+              <li>Block 4: ${blockScores[3]} out of 18</li>
             </ul>
           </div>
-          <p>Thank you for participating in this study! The experiment you just completed is a part of a research project exploring how individuals perceive their sense of control when they are performing actions they are familiar and unfamiliar with. In this case, this was done through the game where you typed words and nonwords. Your rating of how much control you felt over the tones will be helpful for us to understand sense of control in relation to skill.</p>
+          <p>Thank you for participating in this study! The experiment you just completed is a part of a research project exploring how individuals perceive their sense of control when they are performing actions they are familiar and unfamiliar with. In this case, this was done through the game where you typed words and nonwords. Your rating of how much the tones corresponded to your key presses will be helpful for us to understand sense of control in relation to skill.</p>
           <p>We appreciate your time and contribution to our research. Thank you again!</p>
+          <p>Press any key to exit the experiment.</p>
         </div>
       `;
     }
